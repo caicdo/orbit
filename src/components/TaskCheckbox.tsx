@@ -1,8 +1,11 @@
 import { useCompletion } from "./CompletionHost";
 import type { Task } from "../lib/types";
 
-export default function TaskCheckbox({ task }: { task: Task }) {
-  const { complete, uncomplete } = useCompletion();
+/** `confirmOnComplete` is only set on the day timeline's own checkbox — every
+ *  other checkbox in the app (Home, Tasks, the My-day bucket list) finishes
+ *  the task immediately with just an Undo toast. */
+export default function TaskCheckbox({ task, confirmOnComplete = false }: { task: Task; confirmOnComplete?: boolean }) {
+  const { completeSimple, completeConfirm, uncomplete } = useCompletion();
   const done = task.status === "done";
   return (
     <button
@@ -11,7 +14,9 @@ export default function TaskCheckbox({ task }: { task: Task }) {
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation();
-        done ? uncomplete(task) : complete(task);
+        if (done) uncomplete(task);
+        else if (confirmOnComplete) completeConfirm(task);
+        else completeSimple(task);
       }}
     >
       <i className="ph ph-check" />

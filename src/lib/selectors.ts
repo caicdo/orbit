@@ -1,4 +1,5 @@
-import { DUE, type AppData, type BucketKey, type List, type Status, type Task } from "./types";
+import { dueBucket } from "./time";
+import type { AppData, BucketKey, List, Status, Task } from "./types";
 
 export const listById = (lists: List[], id: string | null): List | undefined =>
   id ? lists.find((l) => l.id === id) : undefined;
@@ -35,13 +36,9 @@ export function collapseDone(tasks: Task[], showDone: boolean) {
 }
 
 export const BUCKETS: { key: BucketKey; title: string; match: (t: Task) => boolean }[] = [
-  { key: "today", title: "For today", match: (t) => t.due === DUE.today },
-  { key: "tomorrow", title: "For tomorrow", match: (t) => t.due === DUE.tomorrow },
-  {
-    key: "week",
-    title: "For this week",
-    match: (t) => t.due >= 2 && t.due < DUE.none,
-  },
+  { key: "today", title: "For today", match: (t) => dueBucket(t.due) === "today" },
+  { key: "tomorrow", title: "For tomorrow", match: (t) => dueBucket(t.due) === "tomorrow" },
+  { key: "week", title: "For this week", match: (t) => dueBucket(t.due) === "week" },
 ];
 
 /** Unscheduled, unfinished tasks for a My-day bucket. */

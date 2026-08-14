@@ -3,8 +3,24 @@ import type { Dispatch, ReactNode } from "react";
 import { useAuth } from "./auth/AuthContext";
 import { dataAdapter } from "./persistence";
 import { reducer, type Action } from "./reducer";
+import { addDays, today } from "./time";
 import { PAGES } from "../pages/registry";
-import { DEFAULT_FOLDER_ID, emptyData, type AppData, type NavFolder, type NavPref } from "./types";
+import { emptyData, type AppData, type NavPref, type Task } from "./types";
+
+/** Pre-0.2 builds stored `due` as a small bucket enum (0/1/3/99). Real due
+ *  dates are epoch ms of a day's midnight — enormous by comparison — so any
+ *  small number left over from that format is unambiguous. */
+function migrateDue(due: unknown): number | null {
+  if (typeof due !== "number") return due === null ? null : today();
+  if (due > 100_000) return due; // already a real timestamp
+  if (due === 0) return today();
+  if (due === 1) return addDays(today(), 1);
+  if (due === 3) return addDays(today(), 3);
+  return null; // legacy "no date" (99) or anything unrecognized
+}
+
+const migrateTasks = (tasks: Task[]): Task[] =>
+  tasks.map((t) => ({ ...t, due: migrateDue((t as unknown as { due: unknown }).due) }));
 
 interface StoreValue {
   data: AppData;
@@ -16,30 +32,16 @@ interface StoreValue {
 const StoreContext = createContext<StoreValue | null>(null);
 
 /** Nav prefs are seeded from the page registry, so a newly added page shows up
- *  automatically for existing accounts too. Every unpinned channel must belong
- *  to a folder, so this also backfills folderId for prefs saved before folders
- *  existed and guarantees at least the default folder is present. */
-function withRegistryPages(nav: NavPref[], folders: NavFolder[]): { nav: NavPref[]; navFolders: NavFolder[] } {
-  const navFolders = folders.length
-    ? folders
-    : [{ id: DEFAULT_FOLDER_ID, name: "Channels", collapsed: false }];
-  const fallbackFolder = navFolders[0].id;
-  const knownFolders = new Set(navFolders.map((f) => f.id));
-
+ *  automatically for existing accounts too. */
+function withRegistryPages(nav: NavPref[]): NavPref[] {
   const known = new Set(nav.map((n) => n.id));
   const additions: NavPref[] = PAGES.filter((p) => !known.has(p.id)).map((p) => ({
     id: p.id,
     pinned: p.defaultPinned,
     hidden: false,
-    folderId: p.defaultPinned ? null : fallbackFolder,
   }));
-  const valid = nav
-    .filter((n) => PAGES.some((p) => p.id === n.id))
-    .map((n) => ({
-      ...n,
-      folderId: n.pinned ? null : n.folderId && knownFolders.has(n.folderId) ? n.folderId : fallbackFolder,
-    }));
-  return { nav: [...valid, ...additions], navFolders };
+  const valid = nav.filter((n) => PAGES.some((p) => p.id === n.id));
+  return [...valid, ...additions];
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
@@ -59,8 +61,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dataAdapter.load(account.id).then((stored) => {
       if (!alive) return;
       const base = stored ?? emptyData();
-      const { nav, navFolders } = withRegistryPages(base.nav, base.navFolders ?? []);
-      dispatch({ type: "hydrate", data: { ...base, nav, navFolders } });
+      const nav = withRegistryPages(base.nav);
+      const tasks = migrateTasks(base.tasks);
+      const prefs = { ...emptyData().prefs, ...base.prefs };
+      dispatch({ type: "hydrate", data: { ...base, tasks, nav, prefs } });
       setLoaded(true);
     });
     return () => {

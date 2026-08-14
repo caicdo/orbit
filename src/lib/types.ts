@@ -3,9 +3,9 @@
 
 export type Status = "todo" | "doing" | "done";
 
-/** Due buckets are numeric so they sort naturally. 99 = no date. */
-export const DUE = { today: 0, tomorrow: 1, week: 3, none: 99 } as const;
-export type Due = (typeof DUE)[keyof typeof DUE];
+/** A specific calendar date, stored as the epoch ms of that day's local
+ *  midnight (see lib/time.ts). null = no due date. */
+export type Due = number | null;
 
 export type Remind = "none" | "15m" | "1h" | "morning";
 export type Repeat = "none" | "daily" | "weekdays" | "weekly";
@@ -48,18 +48,7 @@ export interface NavPref {
   id: string;
   pinned: boolean;
   hidden: boolean;
-  /** which folder this channel lives in; null only ever happens while pinned */
-  folderId: string | null;
 }
-
-export interface NavFolder {
-  id: string;
-  name: string;
-  collapsed: boolean;
-}
-
-/** Every install gets this folder so unpinned pages always have somewhere to live. */
-export const DEFAULT_FOLDER_ID = "default";
 
 export type TaskView = "board" | "list" | "cards";
 export type BucketKey = "today" | "tomorrow" | "week";
@@ -71,13 +60,14 @@ export interface Prefs {
   buckets: Record<BucketKey, boolean>;
   /** timeline pixels per hour */
   zoom: number;
+  /** collapsed state of the sidebar's "Lists" section */
+  listsCollapsed: boolean;
 }
 
 export interface AppData {
   tasks: Task[];
   lists: List[];
   nav: NavPref[];
-  navFolders: NavFolder[];
   prefs: Prefs;
 }
 
@@ -121,12 +111,12 @@ export const emptyData = (): AppData => ({
   tasks: [],
   lists: [],
   nav: [],
-  navFolders: [{ id: DEFAULT_FOLDER_ID, name: "Channels", collapsed: false }],
   prefs: {
     view: "board",
     filterListId: null,
     showDone: false,
     buckets: { today: true, tomorrow: false, week: false },
     zoom: 68,
+    listsCollapsed: false,
   },
 });

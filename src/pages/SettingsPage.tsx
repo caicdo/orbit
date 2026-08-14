@@ -4,6 +4,7 @@ import { useAuth } from "../lib/auth/AuthContext";
 import { useStore } from "../lib/store";
 import { useUpdater } from "../components/UpdaterHost";
 import { isTauri } from "../lib/platform";
+import { pageById } from "./registry";
 
 type Wipe = "tasks" | "lists" | "all";
 
@@ -36,7 +37,7 @@ const UPDATE_COPY: Record<string, string> = {
 
 export default function SettingsPage() {
   const { data, dispatch, backend } = useStore();
-  const { account, verifyPassword } = useAuth();
+  const { account, verifyPassword, signOut } = useAuth();
   const updater = useUpdater();
   const [wipe, setWipe] = useState<Wipe | null>(null);
   const [password, setPassword] = useState("");
@@ -74,6 +75,44 @@ export default function SettingsPage() {
       <p className="muted small">
         Signed in as {account?.email}. Auth and storage backend: <strong>{backend}</strong>.
       </p>
+      <button className="btn btn-secondary" onClick={() => void signOut()}>
+        <i className="ph ph-sign-out" />
+        Sign out
+      </button>
+
+      <h4 className="mt">Sidebar pages</h4>
+      <p className="muted small">
+        Pin a page to keep it above the folders, or hide it out of the list entirely. A page hidden here
+        stops showing up in the sidebar — this is the only way to bring it back.
+      </p>
+      <div className="page-prefs">
+        {data.nav
+          .filter((n) => n.id !== "settings" && pageById(n.id))
+          .map((n) => {
+            const def = pageById(n.id)!;
+            return (
+              <div className="page-prefs-row" key={n.id}>
+                <i className={def.icon} />
+                <span className="grow">{def.label}</span>
+                <button
+                  className={`btn btn-secondary${n.pinned ? " is-on" : ""}`}
+                  onClick={() => dispatch({ type: "nav/setPref", id: n.id, fields: { pinned: !n.pinned } })}
+                >
+                  <i className={n.pinned ? "ph-fill ph-push-pin" : "ph ph-push-pin"} />
+                  {n.pinned ? "Pinned" : "Pin"}
+                </button>
+                <button
+                  className={`btn btn-secondary${n.hidden ? " is-on" : ""}`}
+                  disabled={n.pinned}
+                  onClick={() => dispatch({ type: "nav/setPref", id: n.id, fields: { hidden: !n.hidden } })}
+                >
+                  <i className={n.hidden ? "ph-fill ph-eye-slash" : "ph ph-eye-slash"} />
+                  {n.hidden ? "Hidden" : "Hide"}
+                </button>
+              </div>
+            );
+          })}
+      </div>
 
       {isTauri() && (
         <>

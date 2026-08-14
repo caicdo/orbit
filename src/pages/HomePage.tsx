@@ -4,8 +4,7 @@ import { useNav } from "../lib/navContext";
 import { useTaskEditor } from "../components/TaskModalHost";
 import TaskCheckbox from "../components/TaskCheckbox";
 import { completionHeatmap, listColor } from "../lib/selectors";
-import { dueLabel, formatHours, formatTime } from "../lib/time";
-import { DUE } from "../lib/types";
+import { dueBucket, dueDisplay, formatHours, formatTime } from "../lib/time";
 
 export default function HomePage() {
   const { data, dispatch } = useStore();
@@ -14,7 +13,7 @@ export default function HomePage() {
   const { tasks, lists } = data;
 
   const open = tasks.filter((t) => t.status !== "done");
-  const todayOpen = open.filter((t) => t.due === DUE.today);
+  const todayOpen = open.filter((t) => dueBucket(t.due) === "today");
   const scheduled = tasks.filter((t) => t.startMin !== null && t.startMin >= 0 && t.startMin < 1440);
   const scheduledMin = scheduled
     .filter((t) => t.status !== "done")
@@ -26,15 +25,15 @@ export default function HomePage() {
     { label: "Scheduled", value: formatHours(scheduledMin), note: "on the day timeline" },
     {
       label: "Done today",
-      value: tasks.filter((t) => t.status === "done" && t.due === DUE.today).length,
+      value: tasks.filter((t) => t.status === "done" && dueBucket(t.due) === "today").length,
       note: "completed",
     },
   ];
 
   const isEmpty = tasks.length === 0 && lists.length === 0;
   const weekTasks = tasks
-    .filter((t) => t.status !== "done" && t.due >= DUE.today && t.due < DUE.none)
-    .sort((a, b) => a.due - b.due || a.createdAt - b.createdAt);
+    .filter((t) => t.status !== "done" && ["today", "tomorrow", "week"].includes(dueBucket(t.due)))
+    .sort((a, b) => (a.due ?? 0) - (b.due ?? 0) || a.createdAt - b.createdAt);
 
   const heatmap = useMemo(() => completionHeatmap(tasks), [tasks]);
 
@@ -123,7 +122,9 @@ export default function HomePage() {
                     <TaskCheckbox task={t} />
                     <span className="dot" style={{ background: listColor(lists, t.listId) }} />
                     <span className="grow">{t.title}</span>
-                    <span className="muted small">{dueLabel(t.due)}</span>
+                    <span className={`muted small${dueDisplay(t.due).tone ? ` due-${dueDisplay(t.due).tone}` : ""}`}>
+                      {dueDisplay(t.due).text}
+                    </span>
                   </div>
                 ))}
                 {weekTasks.length === 0 && <p className="hint">Nothing on deck this week.</p>}
