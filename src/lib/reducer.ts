@@ -1,13 +1,12 @@
 import { uid } from "./id";
+import { today } from "./time";
 import {
-  DEFAULT_FOLDER_ID,
-  DUE,
   LIST_COLORS,
   emptyData,
   type AppData,
   type BucketKey,
   type List,
-  type NavFolder,
+  type NavPref,
   type Prefs,
   type Task,
 } from "./types";
@@ -24,11 +23,8 @@ export type Action =
   | { type: "list/add"; name?: string }
   | { type: "list/update"; id: string; fields: Partial<List> }
   | { type: "list/remove"; id: string }
-  | { type: "nav/set"; nav: AppData["nav"] }
-  | { type: "folder/add"; name?: string }
-  | { type: "folder/rename"; id: string; name: string }
-  | { type: "folder/remove"; id: string }
-  | { type: "folder/toggle"; id: string; collapsed: boolean }
+  | { type: "nav/setPref"; id: string; fields: Partial<Pick<NavPref, "pinned" | "hidden">> }
+  | { type: "nav/move"; id: string; pinned: boolean; beforeId: string | null }
   | { type: "prefs/set"; fields: Partial<Prefs> }
   | { type: "prefs/bucket"; key: BucketKey; open: boolean }
   | { type: "wipe"; what: "tasks" | "lists" | "all" };
@@ -38,7 +34,7 @@ export const newTask = (over: Partial<Task> = {}): Task => ({
   title: "",
   listId: null,
   status: "todo",
-  due: DUE.today,
+  due: today(),
   important: false,
   estMin: 60,
   startMin: null,
@@ -114,44 +110,21 @@ export function reducer(state: AppData, action: Action): AppData {
         },
       };
 
-    case "nav/set":
-      return { ...state, nav: action.nav };
-
-    case "folder/add": {
-      const folder: NavFolder = {
-        id: uid(),
-        name:
-          action.name ??
-          `New folder${state.navFolders.length ? ` ${state.navFolders.length + 1}` : ""}`,
-        collapsed: false,
-      };
-      return { ...state, navFolders: [...state.navFolders, folder] };
-    }
-
-    case "folder/rename":
+    case "nav/setPref":
       return {
         ...state,
-        navFolders: state.navFolders.map((f) => (f.id === action.id ? { ...f, name: action.name } : f)),
+        nav: state.nav.map((n) => (n.id === action.id ? { ...n, ...action.fields } : n)),
       };
 
-    case "folder/toggle":
-      return {
-        ...state,
-        navFolders: state.navFolders.map((f) =>
-          f.id === action.id ? { ...f, collapsed: action.collapsed } : f,
-        ),
-      };
-
-    case "folder/remove": {
-      // Every unpinned channel needs a folder — refuse to remove the last one.
-      if (state.navFolders.length <= 1) return state;
-      const remaining = state.navFolders.filter((f) => f.id !== action.id);
-      const fallback = remaining.find((f) => f.id === DEFAULT_FOLDER_ID)?.id ?? remaining[0].id;
-      return {
-        ...state,
-        navFolders: remaining,
-        nav: state.nav.map((n) => (n.folderId === action.id ? { ...n, folderId: fallback } : n)),
-      };
+    case "nav/move": {
+      const from = state.nav.findIndex((n) => n.id === action.id);
+      if (from < 0) return state;
+      const item: NavPref = { ...state.nav[from], pinned: action.pinned };
+      const nav = state.nav.slice();
+      nav.splice(from, 1);
+      const to = action.beforeId ? nav.findIndex((n) => n.id === action.beforeId) : -1;
+      nav.splice(to < 0 ? nav.length : to, 0, item);
+      return { ...state, nav };
     }
 
     case "prefs/set":
@@ -165,7 +138,7 @@ export function reducer(state: AppData, action: Action): AppData {
 
     case "wipe": {
       const base = emptyData();
-      if (action.what === "all") return { ...base, nav: state.nav, navFolders: state.navFolders };
+      if (action.what === "all") return { ...base, nav: state.nav };
       if (action.what === "tasks")
         return { ...state, tasks: [], prefs: { ...state.prefs, filterListId: null } };
       return {

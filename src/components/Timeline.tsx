@@ -1,4 +1,5 @@
 import type { RefObject } from "react";
+import TaskCheckbox from "./TaskCheckbox";
 import { formatRange, formatTime, type Geometry } from "../lib/time";
 import { laneLayout, listColor } from "../lib/selectors";
 import type { List, Task } from "../lib/types";
@@ -65,8 +66,13 @@ export default function Timeline({
               onMouseDown={(e) => onBlockGrab(t, e)}
             >
               <div className="tl-handle top" onMouseDown={(e) => onResize(t, "top", e)} />
-              <div className="tl-title">{t.title}</div>
-              <div className="tl-time">{formatRange(t.startMin!, t.estMin)}</div>
+              <div className="row start tl-row">
+                <TaskCheckbox task={t} confirmOnComplete />
+                <div className="tl-body">
+                  <div className="tl-title">{t.title}</div>
+                  <div className="tl-time">{formatRange(t.startMin!, t.estMin)}</div>
+                </div>
+              </div>
               <div className="tl-handle bottom" onMouseDown={(e) => onResize(t, "bottom", e)} />
             </div>
           );

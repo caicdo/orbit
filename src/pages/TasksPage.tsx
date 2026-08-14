@@ -3,8 +3,15 @@ import TaskCheckbox from "../components/TaskCheckbox";
 import { useTaskEditor } from "../components/TaskModalHost";
 import { useStore } from "../lib/store";
 import { STATUS_COLUMNS, collapseDone, listColor, listName, visibleTasks } from "../lib/selectors";
-import { dueLabel } from "../lib/time";
+import { dueDisplay } from "../lib/time";
+import { armOnHold } from "../lib/dragArm";
 import type { Status, Task } from "../lib/types";
+
+const DueBadge = ({ due }: { due: Task["due"] }) => {
+  if (due == null) return <span>—</span>;
+  const { text, tone } = dueDisplay(due);
+  return <span className={tone ? `due-${tone}` : ""}>{text}</span>;
+};
 
 export default function TasksPage() {
   const { data, dispatch } = useStore();
@@ -76,7 +83,7 @@ export default function TasksPage() {
     "data-task-id": t.id,
     className: `task-card${editingId === t.id ? " is-selected" : ""}${dragId === t.id ? " is-dragging" : ""}`,
     style: { "--list-tint": listColor(lists, t.listId) } as React.CSSProperties,
-    onMouseDown: (e: React.MouseEvent) => e.button === 0 && setDragId(t.id),
+    onMouseDown: (e: React.MouseEvent) => armOnHold(e, () => setDragId(t.id)),
     onClick: () => !moved.current && openTask(t.id),
   });
 
@@ -122,7 +129,7 @@ export default function TasksPage() {
                   <div className="card-meta">
                     <span className="dot" style={{ background: listColor(lists, t.listId) }} />
                     <span>{listName(lists, t.listId)}</span>
-                    <span>{dueLabel(t.due)}</span>
+                    <DueBadge due={t.due} />
                     <span className="spacer" />
                     <span>
                       {t.steps.length
@@ -166,7 +173,7 @@ export default function TasksPage() {
                     className={`flat-row${editingId === t.id ? " is-selected" : ""}${
                       dragId === t.id ? " is-dragging" : ""
                     }`}
-                    onMouseDown={(e) => e.button === 0 && setDragId(t.id)}
+                    onMouseDown={(e) => armOnHold(e, () => setDragId(t.id))}
                     onClick={() => !moved.current && openTask(t.id)}
                   >
                     <TaskCheckbox task={t} />
@@ -175,7 +182,7 @@ export default function TasksPage() {
                       <span className="dot" style={{ background: listColor(lists, t.listId) }} />
                       {listName(lists, t.listId)}
                     </span>
-                    <span className="col-sm muted small">{dueLabel(t.due)}</span>
+                    <span className="col-sm small"><DueBadge due={t.due} /></span>
                     <span className="col-sm">
                       <span className={`pill is-${t.status}`}>
                         {t.status === "todo" ? "To do" : t.status === "doing" ? "In progress" : "Done"}
@@ -218,7 +225,7 @@ export default function TasksPage() {
                       </div>
                       <div className="card-meta">
                         <span>{listName(lists, t.listId)}</span>
-                        <span>{dueLabel(t.due)}</span>
+                        <DueBadge due={t.due} />
                       </div>
                     </div>
                   );

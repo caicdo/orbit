@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../lib/auth/AuthContext";
 import { useStore } from "../lib/store";
+import { dueBucket } from "../lib/time";
 import { PAGES, pageById } from "../pages/registry";
 import type { NavPref } from "../lib/types";
 
@@ -9,29 +10,88 @@ interface Props {
   onNavigate(id: string): void;
 }
 
-/** Pinned row + folders of channels, Discord-style: drag a channel onto another
- *  row to reorder, onto a folder to move it in, or onto the pinned zone to pin
- *  it. Every unpinned channel always belongs to exactly one folder. */
+type DropTarget = { zone: "pinned" | "rest"; beforeId: string | null } | null;
+
+/** Which zone and which row to drop before, purely from the pointer's height
+ *  on screen — never its horizontal position. Sideways drift (the cursor
+ *  straying right past the sidebar's edge, which happens constantly on a
+ *  column this narrow) used to go through `elementFromPoint`, which returns
+ *  nothing useful once the pointer leaves the sidebar and made the drag go
+ *  dead. Comparing against each zone's and row's own rect instead means the
+ *  drag keeps tracking no matter how far off to the side the pointer wanders,
+ *  as long as it's at roughly the right height — the same leniency Discord,
+ *  Trello, etc. give a drag. */
+function resolveDropTarget(
+  clientY: number,
+  excludeId: string,
+  pinnedEl: HTMLElement | null,
+  restEl: HTMLElement | null,
+): DropTarget {
+  const zones = (
+    [
+      pinnedEl && { zone: "pinned" as const, el: pinnedEl },
+      restEl && { zone: "rest" as const, el: restEl },
+    ] as const
+  ).filter((z): z is { zone: "pinned" | "rest"; el: HTMLElement } => Boolean(z));
+  if (zones.length === 0) return null;
+
+  // Two zones stacked vertically: whichever side of the midpoint between
+  // them the pointer is on wins — above the first zone still counts as the
+  // first, below the last still counts as the last.
+  let target = zones[0];
+  if (zones.length > 1) {
+    const [a, b] = zones;
+    const boundary = (a.el.getBoundingClientRect().bottom + b.el.getBoundingClientRect().top) / 2;
+    target = clientY < boundary ? a : b;
+  }
+
+  const rows = Array.from(target.el.querySelectorAll<HTMLElement>("[data-nav-id]")).filter(
+    (row) => row.dataset.navId !== excludeId,
+  );
+  for (const row of rows) {
+    const r = row.getBoundingClientRect();
+    if (clientY < r.top + r.height / 2) return { zone: target.zone, beforeId: row.dataset.navId! };
+  }
+  return { zone: target.zone, beforeId: null };
+}
+
+/** A pinned zone plus a plain flat list of the rest — drag a page onto
+ *  another row to reorder it, or onto the pinned zone to pin it. The dragged
+ *  row just dims in place — nothing reorders until you drop it on the
+ *  insertion line that tracks the pointer. */
 export default function Sidebar({ page, onNavigate }: Props) {
   const { data, dispatch } = useStore();
-  const { account, signOut } = useAuth();
-  const [customizing, setCustomizing] = useState(false);
+  const { account } = useAuth();
   const [dragId, setDragId] = useState<string | null>(null);
+  const [drop, setDrop] = useState<DropTarget>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
   const moved = useRef(false);
-  const dataRef = useRef(data);
-  dataRef.current = data;
+  const menuRef = useRef<HTMLDivElement>(null);
+  const pinnedZoneRef = useRef<HTMLDivElement>(null);
+  const restZoneRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuFor) return;
+    const onDown = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuFor(null);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [menuFor]);
 
   /** Arms on mousedown but does nothing else — no state, no listeners committed —
    *  until the pointer actually moves past a small threshold. A plain click on the
    *  row (the overwhelmingly common case) is then indistinguishable from clicking any
    *  other button: nothing intercepts it, so it can't race with mouseup/click on
    *  WebKit the way starting a drag on every mousedown could. Only once movement
-   *  proves it's a real drag do we start tracking reorder state. */
+   *  proves it's a real drag do we track a drop target, and only mouseup commits it. */
   const beginPossibleDrag = (id: string) => (e: React.MouseEvent) => {
     if (e.button !== 0) return;
     const startX = e.clientX;
     const startY = e.clientY;
     let armed = false;
+    let last: DropTarget = null;
+    let raf = 0;
 
     const onMove = (ev: MouseEvent) => {
       if (!armed) {
@@ -41,48 +101,27 @@ export default function Sidebar({ page, onNavigate }: Props) {
         setDragId(id);
       }
 
-      const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
-      const row = el?.closest("[data-nav-id]") as HTMLElement | null;
-      const overId = row?.dataset.navId;
-      const nav = dataRef.current.nav.slice();
-      const from = nav.findIndex((n) => n.id === id);
-      if (from < 0) return;
-
-      if (overId && overId !== id) {
-        const pinned = row!.dataset.navPinned === "1";
-        const folderId = pinned ? null : row!.dataset.navFolder || null;
-        const item: NavPref = { ...nav[from], pinned, folderId };
-        nav.splice(from, 1);
-        const to = nav.findIndex((n) => n.id === overId);
-        nav.splice(to < 0 ? nav.length : to, 0, item);
-        dispatch({ type: "nav/set", nav });
-        return;
-      }
-
-      // No specific row under the pointer — still let dropping into an empty
-      // folder or the empty pinned zone work, landing at the end of that group.
-      const pinnedZone = el?.closest("[data-pinned-zone]");
-      const folderZone = el?.closest("[data-folder-id]") as HTMLElement | null;
-      if (pinnedZone && !(nav[from].pinned && nav[from].folderId === null)) {
-        const item: NavPref = { ...nav[from], pinned: true, folderId: null };
-        nav.splice(from, 1);
-        nav.push(item);
-        dispatch({ type: "nav/set", nav });
-      } else if (folderZone) {
-        const fid = folderZone.dataset.folderId!;
-        if (nav[from].pinned || nav[from].folderId !== fid) {
-          const item: NavPref = { ...nav[from], pinned: false, folderId: fid };
-          nav.splice(from, 1);
-          nav.push(item);
-          dispatch({ type: "nav/set", nav });
-        }
-      }
+      // Coalesced to one lookup + render per frame, however fast the mouse
+      // events arrive, so the line tracks the pointer without stutter.
+      if (raf) return;
+      const clientY = ev.clientY;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const next = resolveDropTarget(clientY, id, pinnedZoneRef.current, restZoneRef.current);
+        last = next;
+        setDrop(next);
+      });
     };
 
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
-      if (armed) setDragId(null);
+      if (raf) cancelAnimationFrame(raf);
+      if (armed && last) {
+        dispatch({ type: "nav/move", id, pinned: last.zone === "pinned", beforeId: last.beforeId });
+      }
+      setDragId(null);
+      setDrop(null);
       setTimeout(() => (moved.current = false), 60);
     };
 
@@ -94,28 +133,27 @@ export default function Sidebar({ page, onNavigate }: Props) {
   const badges: Record<string, string> = {
     tasks: openCount ? String(openCount) : "",
     myday: (() => {
-      const c = data.tasks.filter((t) => t.due === 0 && t.status !== "done").length;
+      const c = data.tasks.filter((t) => dueBucket(t.due) === "today" && t.status !== "done").length;
       return c ? String(c) : "";
     })(),
     lists: data.lists.length ? String(data.lists.length) : "",
   };
 
-  const setPref = (id: string, fields: Partial<NavPref>) =>
-    dispatch({ type: "nav/set", nav: data.nav.map((n) => (n.id === id ? { ...n, ...fields } : n)) });
+  const setPref = (id: string, fields: Partial<Pick<NavPref, "pinned" | "hidden">>) => {
+    dispatch({ type: "nav/setPref", id, fields });
+    setMenuFor(null);
+  };
 
-  const visible = (n: NavPref) => (customizing || !n.hidden) && pageById(n.id);
+  // The Settings page gets its own fixed spot at the bottom of the sidebar
+  // (see footer below) instead of living in the draggable page list.
+  const visible = (n: NavPref) => n.id !== "settings" && !n.hidden && pageById(n.id);
   const pinned = data.nav.filter((n) => n.pinned && visible(n)).map((n) => ({ pref: n, def: pageById(n.id)! }));
-  const inFolder = (folderId: string) =>
-    data.nav
-      .filter((n) => !n.pinned && n.folderId === folderId && visible(n))
-      .map((n) => ({ pref: n, def: pageById(n.id)! }));
+  const rest = data.nav.filter((n) => !n.pinned && visible(n)).map((n) => ({ pref: n, def: pageById(n.id)! }));
 
   const NavRow = ({ pref, def }: { pref: NavPref; def: (typeof PAGES)[number] }) => (
     <div
       className={`nav-row${dragId === pref.id ? " is-dragging" : ""}`}
       data-nav-id={pref.id}
-      data-nav-pinned={pref.pinned ? "1" : "0"}
-      data-nav-folder={pref.folderId ?? ""}
       onMouseDown={beginPossibleDrag(pref.id)}
     >
       <button
@@ -126,33 +164,30 @@ export default function Sidebar({ page, onNavigate }: Props) {
         <span>{def.label}</span>
         <span className="badge">{badges[pref.id] ?? ""}</span>
       </button>
-      {customizing && (
-        <>
-          <button
-            className={`btn btn-icon${pref.pinned ? " is-on" : ""}`}
-            title={pref.pinned ? "Unpin" : "Pin"}
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={() =>
-              setPref(pref.id, {
-                pinned: !pref.pinned,
-                folderId: pref.pinned ? data.navFolders[0]?.id ?? null : null,
-              })
-            }
-          >
-            <i className={pref.pinned ? "ph-fill ph-push-pin" : "ph ph-push-pin"} />
-          </button>
-          {!pref.pinned && (
-            <button
-              className="btn btn-icon"
-              title={pref.hidden ? "Show" : "Hide"}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={() => setPref(pref.id, { hidden: !pref.hidden })}
-            >
-              <i className={pref.hidden ? "ph ph-eye-slash" : "ph ph-eye"} />
+      <div className="nav-row-menu-wrap" ref={menuFor === pref.id ? menuRef : undefined}>
+        <button
+          className={`btn btn-icon nav-row-menu-btn${menuFor === pref.id ? " is-open" : ""}`}
+          title="Page settings"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={() => setMenuFor(menuFor === pref.id ? null : pref.id)}
+        >
+          <i className="ph ph-dots-three-vertical" />
+        </button>
+        {menuFor === pref.id && (
+          <div className="nav-row-menu">
+            <button className="nav-row-menu-opt" onClick={() => setPref(pref.id, { pinned: !pref.pinned })}>
+              <i className={pref.pinned ? "ph-fill ph-push-pin" : "ph ph-push-pin"} />
+              {pref.pinned ? "Unpin" : "Pin"}
             </button>
-          )}
-        </>
-      )}
+            {!pref.pinned && (
+              <button className="nav-row-menu-opt" onClick={() => setPref(pref.id, { hidden: true })}>
+                <i className="ph ph-eye-slash" />
+                Hide
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -161,101 +196,79 @@ export default function Sidebar({ page, onNavigate }: Props) {
       <header className="sidebar-head">
         <span className="avatar">{account?.name.slice(0, 2).toUpperCase()}</span>
         <span className="sidebar-name">{account?.name}</span>
-        <button
-          className={`btn btn-icon${customizing ? " is-on" : ""}`}
-          title="Customize menu"
-          onClick={() => setCustomizing((v) => !v)}
-        >
-          <i className="ph ph-sliders-horizontal" />
-        </button>
       </header>
 
       <div className="kicker">Pinned</div>
-      <div className="pinned-zone" data-pinned-zone="1">
+      <div className="pinned-zone" ref={pinnedZoneRef}>
         {pinned.map((r) => (
-          <NavRow key={r.pref.id} {...r} />
+          <div key={r.pref.id}>
+            {drop?.zone === "pinned" && drop.beforeId === r.pref.id && <div className="drop-line" />}
+            <NavRow {...r} />
+          </div>
         ))}
-        {pinned.length === 0 && <p className="hint">Drag a channel here to pin it.</p>}
+        {drop?.zone === "pinned" && drop.beforeId === null && dragId && <div className="drop-line" />}
+        {pinned.length === 0 && <p className="hint">Drag a page here to pin it.</p>}
       </div>
 
-      <div className="kicker row">
-        <span>Folders</span>
-        <button className="btn btn-icon" title="New folder" onClick={() => dispatch({ type: "folder/add" })}>
-          <i className="ph ph-plus" />
-        </button>
-      </div>
-      {data.navFolders.map((folder) => {
-        const rows = inFolder(folder.id);
-        return (
-          <div className="folder" key={folder.id} data-folder-id={folder.id}>
-            <div className="folder-head">
-              <button
-                className="btn btn-icon folder-caret"
-                title={folder.collapsed ? "Expand" : "Collapse"}
-                onClick={() => dispatch({ type: "folder/toggle", id: folder.id, collapsed: !folder.collapsed })}
-              >
-                <i className={folder.collapsed ? "ph ph-caret-right" : "ph ph-caret-down"} />
-              </button>
-              <input
-                className="input bare folder-name"
-                value={folder.name}
-                onChange={(e) => dispatch({ type: "folder/rename", id: folder.id, name: e.target.value })}
-              />
-              <span className="badge">{rows.length || ""}</span>
-              {data.navFolders.length > 1 && (
-                <button
-                  className="btn btn-icon"
-                  title="Delete folder"
-                  onClick={() => dispatch({ type: "folder/remove", id: folder.id })}
-                >
-                  <i className="ph ph-trash" />
-                </button>
-              )}
-            </div>
-            {!folder.collapsed && (
-              <div className="folder-body">
-                {rows.map((r) => (
-                  <NavRow key={r.pref.id} {...r} />
-                ))}
-                {rows.length === 0 && <p className="hint folder-empty">Drag a channel here.</p>}
-              </div>
-            )}
+      <div className="kicker">Pages</div>
+      <div className="nav-list" ref={restZoneRef}>
+        {rest.map((r) => (
+          <div key={r.pref.id}>
+            {drop?.zone === "rest" && drop.beforeId === r.pref.id && <div className="drop-line" />}
+            <NavRow {...r} />
           </div>
-        );
-      })}
-      {customizing && <p className="hint">Drag a channel to reorder it, pin it, or move it into a folder.</p>}
+        ))}
+        {drop?.zone === "rest" && drop.beforeId === null && dragId && <div className="drop-line" />}
+        {rest.length === 0 && <p className="hint">Nothing here.</p>}
+      </div>
 
       <div className="spacer" />
 
       <div className="kicker row">
+        <button
+          className="btn btn-icon lists-caret"
+          title={data.prefs.listsCollapsed ? "Expand" : "Collapse"}
+          onClick={() =>
+            dispatch({ type: "prefs/set", fields: { listsCollapsed: !data.prefs.listsCollapsed } })
+          }
+        >
+          <i className={data.prefs.listsCollapsed ? "ph ph-caret-right" : "ph ph-caret-down"} />
+        </button>
         <span>Lists</span>
         <button className="btn btn-icon" title="New list" onClick={() => dispatch({ type: "list/add" })}>
           <i className="ph ph-plus" />
         </button>
       </div>
-      {data.lists.map((l) => (
-        <button
-          key={l.id}
-          className={`list-btn${data.prefs.filterListId === l.id ? " is-active" : ""}`}
-          onClick={() =>
-            dispatch({
-              type: "prefs/set",
-              fields: { filterListId: data.prefs.filterListId === l.id ? null : l.id },
-            })
-          }
-        >
-          <span className="dot" style={{ background: l.color }} />
-          <span className="list-name">{l.name}</span>
-          <span className="badge">
-            {data.tasks.filter((t) => t.listId === l.id && t.status !== "done").length || ""}
-          </span>
-        </button>
-      ))}
-      {data.lists.length === 0 && <p className="hint">No lists yet.</p>}
+      {!data.prefs.listsCollapsed && (
+        <>
+          {data.lists.map((l) => (
+            <button
+              key={l.id}
+              className={`list-btn${data.prefs.filterListId === l.id ? " is-active" : ""}`}
+              onClick={() =>
+                dispatch({
+                  type: "prefs/set",
+                  fields: { filterListId: data.prefs.filterListId === l.id ? null : l.id },
+                })
+              }
+            >
+              <span className="dot" style={{ background: l.color }} />
+              <span className="list-name">{l.name}</span>
+              <span className="badge">
+                {data.tasks.filter((t) => t.listId === l.id && t.status !== "done").length || ""}
+              </span>
+            </button>
+          ))}
+          {data.lists.length === 0 && <p className="hint">No lists yet.</p>}
+        </>
+      )}
 
-      <button className="btn btn-ghost sign-out" onClick={() => void signOut()}>
-        <i className="ph ph-sign-out" />
-        Sign out
+      <button
+        className={`btn btn-ghost nav-footer-btn${page === "settings" ? " is-active" : ""}`}
+        onClick={() => onNavigate("settings")}
+      >
+        <i className="ph ph-gear-six" />
+        Settings
       </button>
     </nav>
   );

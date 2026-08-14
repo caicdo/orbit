@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import { uid } from "../lib/id";
 import { newTask } from "../lib/reducer";
 import { useStore } from "../lib/store";
-import { DUE, type Status, type Task } from "../lib/types";
+import { addDays, dayStart, dueDisplay, today } from "../lib/time";
+import type { Due, Status, Task } from "../lib/types";
 
 /** Centered task editor (Trello-style). Opening a brand-new task and closing it
  *  without changing anything deletes it again. */
@@ -15,10 +16,96 @@ interface EditorValue {
 
 const Ctx = createContext<EditorValue | null>(null);
 
+/** Today/Tomorrow/In a week quick-picks, plus a picker for an exact date —
+ *  the last 15 and next 15 days, today and the currently-picked date each
+ *  called out in their own color. */
+function DueField({ value, onChange }: { value: Due; onChange: (v: Due) => void }) {
+  const [open, setOpen] = useState(false);
+  const [calendar, setCalendar] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current?.contains(e.target as Node)) return;
+      setOpen(false);
+      setCalendar(false);
+    };
+    // Capture phase: the modal card stops a backdrop-click's bubble at
+    // itself (so clicking inside the card can't also close the whole task
+    // editor), which would otherwise stop this listener from ever seeing a
+    // click on some other field inside the same card. Capture fires on the
+    // way down, before that stopPropagation ever gets a chance to run.
+    window.addEventListener("mousedown", onDown, true);
+    return () => window.removeEventListener("mousedown", onDown, true);
+  }, [open]);
+
+  const pick = (v: Due) => {
+    onChange(v);
+    setOpen(false);
+    setCalendar(false);
+  };
+
+  const todayMs = today();
+  const selectedDay = value != null ? dayStart(value) : null;
+  const days = Array.from({ length: 31 }, (_, i) => addDays(todayMs, i - 15));
+
+  return (
+    <div className="field due-field" ref={ref}>
+      <span>Due</span>
+      <button type="button" className="input due-trigger" onClick={() => setOpen((v) => !v)}>
+        {dueDisplay(value).text}
+        <i className={open ? "ph ph-caret-up" : "ph ph-caret-down"} />
+      </button>
+      {open && (
+        <div className="due-pop">
+          {!calendar ? (
+            <>
+              <button type="button" className="due-opt" onClick={() => pick(todayMs)}>
+                Today
+              </button>
+              <button type="button" className="due-opt" onClick={() => pick(addDays(todayMs, 1))}>
+                Tomorrow
+              </button>
+              <button type="button" className="due-opt" onClick={() => pick(addDays(todayMs, 7))}>
+                In a week
+              </button>
+              <button type="button" className="due-opt" onClick={() => setCalendar(true)}>
+                Select a specific date
+                <i className="ph ph-caret-right" />
+              </button>
+              <div className="rule" />
+              <button type="button" className="due-opt muted" onClick={() => pick(null)}>
+                No due date
+              </button>
+            </>
+          ) : (
+            <div className="cal-grid">
+              {days.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  className={`cal-chip${d === todayMs ? " is-today" : ""}${d === selectedDay ? " is-selected" : ""}`}
+                  title={d === todayMs ? "Today" : undefined}
+                  onClick={() => pick(d)}
+                >
+                  <span className="cal-wd">{new Date(d).toLocaleDateString(undefined, { weekday: "short" })}</span>
+                  <span className="cal-dd">{new Date(d).getDate()}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TaskModalHost({ children }: { children: ReactNode }) {
   const { data, dispatch } = useStore();
   const [state, setState] = useState<{ id: string; isNew: boolean; snapshot: string } | null>(null);
   const [stepDraft, setStepDraft] = useState("");
+  const [confirmClose, setConfirmClose] = useState(false);
   const closing = useRef(false);
 
   const task = state ? data.tasks.find((t) => t.id === state.id) : undefined;
@@ -28,6 +115,7 @@ export function TaskModalHost({ children }: { children: ReactNode }) {
       const found = data.tasks.find((t) => t.id === id);
       if (!found) return;
       setStepDraft("");
+      setConfirmClose(false);
       setState({ id, isNew: false, snapshot: JSON.stringify(found) });
     },
     [data.tasks],
@@ -38,6 +126,7 @@ export function TaskModalHost({ children }: { children: ReactNode }) {
       const created = newTask({ listId: data.prefs.filterListId ?? null, ...seed });
       dispatch({ type: "task/add", task: created });
       setStepDraft("");
+      setConfirmClose(false);
       setState({ id: created.id, isNew: true, snapshot: JSON.stringify(created) });
     },
     [dispatch, data.prefs.filterListId],
@@ -56,6 +145,7 @@ export function TaskModalHost({ children }: { children: ReactNode }) {
         }
       }
       setState(null);
+      setConfirmClose(false);
       setTimeout(() => (closing.current = false), 0);
     },
     [state, data.tasks, dispatch],
@@ -75,11 +165,20 @@ export function TaskModalHost({ children }: { children: ReactNode }) {
   const listOk = Boolean(task && (!hasLists || task.listId));
   const valid = titleOk && listOk;
 
+  // Clicking outside the card is the one dismissal path that can silently
+  // throw away real edits, so it's the only one that stops to ask. The
+  // Cancel/Discard button, Save, and the header's close icon are deliberate
+  // choices someone just made with the card in front of them — no prompt.
+  const requestClose = () => {
+    if (state && task && JSON.stringify(task) !== state.snapshot) setConfirmClose(true);
+    else close("cancel");
+  };
+
   return (
     <Ctx.Provider value={{ openTask, createTask, editingId: state?.id ?? null }}>
       {children}
       {task && state && (
-        <div className="modal-backdrop" onMouseDown={() => close("cancel")}>
+        <div className="modal-backdrop" onMouseDown={requestClose}>
           <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
             <header className="modal-head">
               <span className="kicker">{state.isNew ? "New task" : "Edit task"}</span>
@@ -124,19 +223,7 @@ export function TaskModalHost({ children }: { children: ReactNode }) {
                 </select>
               </label>
 
-              <label className="field">
-                <span>Due</span>
-                <select
-                  className="input"
-                  value={task.due}
-                  onChange={(e) => set({ due: Number(e.target.value) as Task["due"] })}
-                >
-                  <option value={DUE.today}>Today</option>
-                  <option value={DUE.tomorrow}>Tomorrow</option>
-                  <option value={DUE.week}>Later this week</option>
-                  <option value={DUE.none}>No date</option>
-                </select>
-              </label>
+              <DueField value={task.due} onChange={(due) => set({ due })} />
 
               <label className="field">
                 <span>Status</span>
@@ -262,6 +349,27 @@ export function TaskModalHost({ children }: { children: ReactNode }) {
               </button>
               <button className="btn btn-primary" disabled={!valid} onClick={() => close("save")}>
                 {state.isNew ? "Add task" : "Save"}
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {task && state && confirmClose && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.stopPropagation()}>
+          <div className="modal narrow-modal" onMouseDown={(e) => e.stopPropagation()}>
+            <h4>Unsaved changes</h4>
+            <p className="muted small">You've made changes to this task that haven't been saved yet.</p>
+            <footer className="modal-foot">
+              <button className="btn btn-ghost" onClick={() => close("cancel")}>
+                Discard
+              </button>
+              <span className="spacer" />
+              <button className="btn btn-ghost" onClick={() => setConfirmClose(false)}>
+                Keep editing
+              </button>
+              <button className="btn btn-primary" disabled={!valid} onClick={() => close("save")}>
+                Save
               </button>
             </footer>
           </div>

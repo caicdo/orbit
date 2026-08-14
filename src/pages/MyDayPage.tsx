@@ -5,6 +5,7 @@ import { useTaskEditor } from "../components/TaskModalHost";
 import { useStore } from "../lib/store";
 import { BUCKETS, bucketTasks, listColor, listName, scheduledTasks } from "../lib/selectors";
 import { formatHours, formatRange, geometry, minutesNow, snap } from "../lib/time";
+import { armOnHold } from "../lib/dragArm";
 import type { BucketKey, Task } from "../lib/types";
 
 type DragMode = "schedule" | "move" | "resize-top" | "resize-bottom";
@@ -195,7 +196,7 @@ export default function MyDayPage() {
                       key={t.id}
                       className={`day-card${drag?.id === t.id && drag.moved ? " is-dragging" : ""}`}
                       style={{ borderLeftColor: listColor(lists, t.listId) }}
-                      onMouseDown={(e) => e.button === 0 && begin("schedule", t, e, 18)}
+                      onMouseDown={(e) => e.button === 0 && armOnHold(e, () => begin("schedule", t, e, 18))}
                       onClick={() => !moved.current && openTask(t.id)}
                     >
                       <div className="row start">
