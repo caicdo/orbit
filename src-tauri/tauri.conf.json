@@ -30,6 +30,15 @@
     "active": true,
     "targets": ["app", "dmg"],
     "icon": ["icons/icon.png"],
-    "macOS": { "minimumSystemVersion": "10.15" }
+    "macOS": { "minimumSystemVersion": "10.15" },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQxRjlDMEQwNTI3REYxRTIKUldUaThYMVMwTUQ1UWUrTFg5Q2NuQ0FhcElhUXFPZE9yTGFQRzVXVnZ0aDZicFBDa1lIUkk2MEIK",
+      "endpoints": [
+        "https://github.com/caicdo/orbit/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

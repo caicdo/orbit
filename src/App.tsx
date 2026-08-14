@@ -5,6 +5,7 @@ import AuthScreen from "./components/AuthScreen";
 import Titlebar from "./components/Titlebar";
 import { CompletionHost } from "./components/CompletionHost";
 import { TaskModalHost } from "./components/TaskModalHost";
+import { UpdaterHost } from "./components/UpdaterHost";
 
 function Gate() {
   const { account, ready } = useAuth();
@@ -26,7 +27,9 @@ export default function App() {
     <AuthProviderComponent>
       <div className="window">
         <Titlebar />
-        <Gate />
+        <UpdaterHost>
+          <Gate />
+        </UpdaterHost>
       </div>
     </AuthProviderComponent>
   );

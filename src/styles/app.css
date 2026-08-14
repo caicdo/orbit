@@ -1208,6 +1208,9 @@ select.needs {
   gap: var(--space-3);
   justify-content: flex-end;
 }
+.update-toast {
+  bottom: 92px;
+}
 .danger-zone {
   display: flex;
   flex-direction: column;

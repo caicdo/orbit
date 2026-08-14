@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useAuth } from "../lib/auth/AuthContext";
 import { useStore } from "../lib/store";
+import { useUpdater } from "../components/UpdaterHost";
+import { isTauri } from "../lib/platform";
 
 type Wipe = "tasks" | "lists" | "all";
 
@@ -22,13 +25,31 @@ const COPY: Record<Wipe, { title: string; body: string; cta: string }> = {
   },
 };
 
+const UPDATE_COPY: Record<string, string> = {
+  idle: "",
+  checking: "Checking for updates…",
+  "up-to-date": "You're on the latest version.",
+  available: "An update is ready to install.",
+  installing: "Downloading and installing…",
+  error: "Couldn't check for updates.",
+};
+
 export default function SettingsPage() {
   const { data, dispatch, backend } = useStore();
   const { account, verifyPassword } = useAuth();
+  const updater = useUpdater();
   const [wipe, setWipe] = useState<Wipe | null>(null);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    invoke<string>("app_version")
+      .then(setAppVersion)
+      .catch(() => setAppVersion(null));
+  }, []);
 
   async function confirm() {
     if (!wipe) return;
@@ -53,6 +74,38 @@ export default function SettingsPage() {
       <p className="muted small">
         Signed in as {account?.email}. Auth and storage backend: <strong>{backend}</strong>.
       </p>
+
+      {isTauri() && (
+        <>
+          <h4 className="mt">Updates</h4>
+          <p className="muted small">
+            {appVersion ? `Orbit v${appVersion}. ` : ""}
+            Checks for a newer signed build on launch, or on demand here.
+          </p>
+          <div className="row gap">
+            <button
+              className="btn btn-secondary"
+              disabled={updater.status === "checking" || updater.status === "installing"}
+              onClick={() => void updater.checkForUpdate()}
+            >
+              <i className="ph ph-arrows-clockwise" />
+              {updater.status === "checking" ? "Checking…" : "Check for updates"}
+            </button>
+            {updater.status === "available" && (
+              <button className="btn btn-primary" onClick={() => void updater.installUpdate()}>
+                <i className="ph ph-rocket-launch" />
+                Install v{updater.version} &amp; restart
+              </button>
+            )}
+            {UPDATE_COPY[updater.status] && updater.status !== "available" && (
+              <span className="muted small">{UPDATE_COPY[updater.status]}</span>
+            )}
+          </div>
+          {updater.status === "error" && updater.error && (
+            <div className="notice mt-sm">{updater.error}</div>
+          )}
+        </>
+      )}
 
       <h4 className="mt">Day timeline</h4>
       <p className="muted small">
