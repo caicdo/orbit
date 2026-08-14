@@ -614,6 +614,7 @@ select.needs {
 .section-title-row h4 {
   margin: 0;
 }
+.task-overview-card,
 .week-card,
 .day-strip {
   background: var(--ink-2);
@@ -622,6 +623,22 @@ select.needs {
   padding: var(--space-6);
   margin-bottom: var(--space-6);
   animation: riseIn 200ms ease both;
+}
+.home-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: var(--space-6);
+  align-items: stretch;
+  margin-bottom: var(--space-6);
+}
+@media (max-width: 720px) {
+  .home-row {
+    grid-template-columns: 1fr;
+  }
+}
+.home-row .task-overview-card,
+.home-row .week-card {
+  margin-bottom: 0;
 }
 .panel-head {
   display: flex;
@@ -662,6 +679,55 @@ select.needs {
   color: #fff;
   line-height: 1;
   margin: 8px 0 4px;
+}
+.task-overview-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.card-desc {
+  margin: 0 0 var(--space-4);
+}
+.heatmap-wrap {
+  overflow-x: auto;
+  margin-top: auto;
+}
+.heatmap {
+  display: flex;
+  gap: 3px;
+  width: max-content;
+}
+.heatmap-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.heatmap-cell {
+  width: 11px;
+  height: 11px;
+  border-radius: 2.5px;
+  background: var(--ink-3);
+}
+.heatmap-cell.level-1 {
+  background: color-mix(in srgb, var(--color-accent) 30%, var(--ink-3));
+}
+.heatmap-cell.level-2 {
+  background: color-mix(in srgb, var(--color-accent) 55%, var(--ink-3));
+}
+.heatmap-cell.level-3 {
+  background: color-mix(in srgb, var(--color-accent) 80%, var(--ink-3));
+}
+.heatmap-cell.level-4 {
+  background: var(--color-accent);
+}
+.heatmap-cell.is-future {
+  background: transparent;
+}
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: var(--space-4);
 }
 .week-card {
   display: flex;

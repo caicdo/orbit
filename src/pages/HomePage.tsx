@@ -1,8 +1,9 @@
+import { useMemo } from "react";
 import { useStore } from "../lib/store";
 import { useNav } from "../lib/navContext";
 import { useTaskEditor } from "../components/TaskModalHost";
 import TaskCheckbox from "../components/TaskCheckbox";
-import { listColor } from "../lib/selectors";
+import { completionHeatmap, listColor } from "../lib/selectors";
 import { dueLabel, formatHours, formatTime } from "../lib/time";
 import { DUE } from "../lib/types";
 
@@ -34,6 +35,8 @@ export default function HomePage() {
   const weekTasks = tasks
     .filter((t) => t.status !== "done" && t.due >= DUE.today && t.due < DUE.none)
     .sort((a, b) => a.due - b.due || a.createdAt - b.createdAt);
+
+  const heatmap = useMemo(() => completionHeatmap(tasks), [tasks]);
 
   return (
     <div className="scroll pad">
@@ -70,23 +73,63 @@ export default function HomePage() {
             ))}
           </div>
 
-          <section className="week-card">
-            <header className="panel-head">
-              <h4>This week</h4>
-              <span className="muted small">{weekTasks.length} open</span>
-            </header>
-            <div className="week-list">
-              {weekTasks.map((t) => (
-                <div className="mini-row" key={t.id} onClick={() => goTo("tasks")}>
-                  <TaskCheckbox task={t} />
-                  <span className="dot" style={{ background: listColor(lists, t.listId) }} />
-                  <span className="grow">{t.title}</span>
-                  <span className="muted small">{dueLabel(t.due)}</span>
+          <div className="home-row">
+            <section className="task-overview-card">
+              <header className="panel-head">
+                <h4>Task overview</h4>
+                <span className="muted small">Last {heatmap.length} weeks</span>
+              </header>
+              <p className="muted small card-desc">
+                Each square is a day — the darker it is, the more tasks you finished.
+              </p>
+              <div className="heatmap-wrap">
+                <div className="heatmap">
+                  {heatmap.map((week, i) => (
+                    <div className="heatmap-col" key={i}>
+                      {week.map((day, j) => (
+                        <div
+                          key={j}
+                          className={`heatmap-cell level-${day.level}${day.inFuture ? " is-future" : ""}`}
+                          title={
+                            day.inFuture
+                              ? undefined
+                              : `${day.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${day.count} ${day.count === 1 ? "task" : "tasks"} done`
+                          }
+                        />
+                      ))}
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {weekTasks.length === 0 && <p className="hint">Nothing on deck this week.</p>}
-            </div>
-          </section>
+              </div>
+              <div className="heatmap-legend">
+                <span className="muted small">Less</span>
+                <span className="heatmap-cell level-0" />
+                <span className="heatmap-cell level-1" />
+                <span className="heatmap-cell level-2" />
+                <span className="heatmap-cell level-3" />
+                <span className="heatmap-cell level-4" />
+                <span className="muted small">More</span>
+              </div>
+            </section>
+
+            <section className="week-card">
+              <header className="panel-head">
+                <h4>This week</h4>
+                <span className="muted small">{weekTasks.length} open</span>
+              </header>
+              <div className="week-list">
+                {weekTasks.map((t) => (
+                  <div className="mini-row" key={t.id} onClick={() => goTo("tasks")}>
+                    <TaskCheckbox task={t} />
+                    <span className="dot" style={{ background: listColor(lists, t.listId) }} />
+                    <span className="grow">{t.title}</span>
+                    <span className="muted small">{dueLabel(t.due)}</span>
+                  </div>
+                ))}
+                {weekTasks.length === 0 && <p className="hint">Nothing on deck this week.</p>}
+              </div>
+            </section>
+          </div>
 
           <section className="day-strip" onClick={() => goTo("myday")}>
             <header className="panel-head">

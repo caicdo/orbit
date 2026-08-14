@@ -53,6 +53,50 @@ export const bucketTasks = (tasks: Task[], key: BucketKey): Task[] => {
 export const scheduledTasks = (tasks: Task[]): Task[] =>
   tasks.filter((t) => t.startMin !== null);
 
+const dateKey = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+export interface HeatmapDay {
+  date: Date;
+  count: number;
+  /** 0 = no tasks completed, 4 = busiest tier. */
+  level: 0 | 1 | 2 | 3 | 4;
+  inFuture: boolean;
+}
+
+const levelFor = (count: number): HeatmapDay["level"] =>
+  count === 0 ? 0 : count === 1 ? 1 : count === 2 ? 2 : count <= 4 ? 3 : 4;
+
+/** Completed-task counts per day, grouped into Sun–Sat weeks (columns) for a
+ *  GitHub-style contribution grid. Ends on the current week; starts `weeks` back. */
+export function completionHeatmap(tasks: Task[], weeks = 14): HeatmapDay[][] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const counts = new Map<string, number>();
+  for (const t of tasks) {
+    if (t.status === "done" && t.completedAt) {
+      const key = dateKey(new Date(t.completedAt));
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+
+  const start = new Date(today);
+  start.setDate(start.getDate() - (weeks * 7 - 1) - start.getDay());
+  const end = new Date(today);
+  end.setDate(end.getDate() + (6 - today.getDay()));
+
+  const days: HeatmapDay[] = [];
+  for (const cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+    const count = counts.get(dateKey(cursor)) ?? 0;
+    days.push({ date: new Date(cursor), count, level: levelFor(count), inFuture: cursor > today });
+  }
+
+  const columns: HeatmapDay[][] = [];
+  for (let i = 0; i < days.length; i += 7) columns.push(days.slice(i, i + 7));
+  return columns;
+}
+
 /** Lays overlapping timeline blocks into side-by-side lanes. */
 export function laneLayout(tasks: Task[]): Map<string, { lane: number; lanes: number }> {
   const out = new Map<string, { lane: number; lanes: number }>();
