@@ -56,41 +56,37 @@ export default function HomePage() {
         </div>
       ) : (
         <>
-          <div className="home-top">
-            <section className="panel">
-              <header className="panel-head">
-                <h4>Overview</h4>
-                <span className="muted small">All time</span>
-              </header>
-              <div className="panel-stats">
-                {stats.map((s) => (
-                  <button className="stat-tile" key={s.label} onClick={() => goTo("tasks")}>
-                    <div className="kicker">{s.label}</div>
-                    <div className="stat-value">{s.value}</div>
-                    <div className="muted small">{s.note}</div>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="week-card">
-              <header className="panel-head">
-                <h4>This week</h4>
-                <span className="muted small">{weekTasks.length} open</span>
-              </header>
-              <div className="week-list">
-                {weekTasks.map((t) => (
-                  <div className="mini-row" key={t.id} onClick={() => goTo("tasks")}>
-                    <TaskCheckbox task={t} />
-                    <span className="dot" style={{ background: listColor(lists, t.listId) }} />
-                    <span className="grow">{t.title}</span>
-                    <span className="muted small">{dueLabel(t.due)}</span>
-                  </div>
-                ))}
-                {weekTasks.length === 0 && <p className="hint">Nothing on deck this week.</p>}
-              </div>
-            </section>
+          <div className="section-title-row">
+            <h4>Overview</h4>
+            <span className="muted small">All time</span>
           </div>
+          <div className="panel-stats">
+            {stats.map((s) => (
+              <button className="stat-tile" key={s.label} onClick={() => goTo("tasks")}>
+                <div className="kicker">{s.label}</div>
+                <div className="stat-value">{s.value}</div>
+                <div className="muted small">{s.note}</div>
+              </button>
+            ))}
+          </div>
+
+          <section className="week-card">
+            <header className="panel-head">
+              <h4>This week</h4>
+              <span className="muted small">{weekTasks.length} open</span>
+            </header>
+            <div className="week-list">
+              {weekTasks.map((t) => (
+                <div className="mini-row" key={t.id} onClick={() => goTo("tasks")}>
+                  <TaskCheckbox task={t} />
+                  <span className="dot" style={{ background: listColor(lists, t.listId) }} />
+                  <span className="grow">{t.title}</span>
+                  <span className="muted small">{dueLabel(t.due)}</span>
+                </div>
+              ))}
+              {weekTasks.length === 0 && <p className="hint">Nothing on deck this week.</p>}
+            </div>
+          </section>
 
           <section className="day-strip" onClick={() => goTo("myday")}>
             <header className="panel-head">

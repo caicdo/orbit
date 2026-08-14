@@ -532,6 +532,12 @@ select.needs {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  /* A low-key ambient glow — two faint accent-tinted radials fading straight
+     into the base ground, never strong enough to compete with content. */
+  background:
+    radial-gradient(900px circle at 14% -12%, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 60%),
+    radial-gradient(760px circle at 100% 108%, color-mix(in srgb, var(--color-accent-2) 7%, transparent), transparent 55%),
+    var(--color-bg);
 }
 .toolbar {
   height: 52px;
@@ -598,20 +604,23 @@ select.needs {
   padding: var(--space-8) 0;
   animation: riseIn 200ms ease both;
 }
-.home-top {
-  display: grid;
-  grid-template-columns: 1.5fr 1fr;
-  gap: var(--space-6);
-  align-items: start;
-  margin-bottom: var(--space-6);
+.section-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
-.panel,
+.section-title-row h4 {
+  margin: 0;
+}
 .week-card,
 .day-strip {
   background: var(--ink-2);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   padding: var(--space-6);
+  margin-bottom: var(--space-6);
   animation: riseIn 200ms ease both;
 }
 .panel-head {
@@ -626,27 +635,33 @@ select.needs {
 }
 .panel-stats {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 .stat-tile {
   text-align: left;
-  background: var(--ink-3);
+  background: var(--ink-2);
+  color: var(--color-text);
   border: none;
-  border-radius: var(--radius-md);
-  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-6);
   cursor: pointer;
   font-family: var(--font-body);
+  animation: riseIn 200ms ease both;
 }
 .stat-tile:hover {
   transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
 }
 .stat-value {
-  font-size: 26px;
+  font-size: 30px;
   font-family: var(--font-heading);
+  font-weight: 700;
+  color: #fff;
   line-height: 1;
-  margin: 6px 0 4px;
+  margin: 8px 0 4px;
 }
 .week-card {
   display: flex;
