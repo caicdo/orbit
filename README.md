@@ -4,7 +4,7 @@ A macOS desktop app for organising work and study: tasks grouped into lists, thr
 to look at them, and a vertical day timeline you drag tasks onto to plan your hours.
 
 Built with **Tauri 2** (native macOS shell) + **React 18** + **TypeScript** + **Vite**.
-Visual style comes from the Nocturne design system — all tokens live in
+Visual style comes from the Nocturne design system; all tokens live in
 `src/styles/nocturne.css`.
 
 ---
@@ -32,12 +32,12 @@ Node: download the LTS installer from nodejs.org, or `brew install node`.
 cd app             # the folder that holds package.json
 npm install        # installs React, Vite, the Tauri CLI (~1 min)
 cp .env.example .env
-npm start          # = `tauri dev` — first run compiles Rust, 2–5 min. Later runs: seconds.
+npm start          # same as `tauri dev`. First run compiles Rust (2 to 5 min), later runs are seconds.
 ```
 
 A real macOS window opens with hot reload: edit anything under `src/` and it updates live.
 
-Nothing else is required — with an empty `.env` the app runs fully offline and keeps an
+Nothing else is required. With an empty `.env` the app runs fully offline and keeps an
 account plus all your data on this Mac. Create an account on the sign-up screen and start
 using it.
 
@@ -53,8 +53,8 @@ npm run bundle
 
 Output: `src-tauri/target/release/bundle/macos/Orbit.app` and a `.dmg` next to it.
 Because it isn't code-signed, the first launch needs right-click → **Open** (or
-System Settings → Privacy & Security → *Open Anyway*). Signing and notarising is only
-needed to distribute it — we are not publishing yet.
+System Settings → Privacy & Security → *Open Anyway*). Signing and notarising only
+matters once we actually distribute it, which isn't yet.
 
 **Optional, once you have a logo:** `npm run tauri icon path/to/logo.png` regenerates every
 icon size from one image. A placeholder icon is already in `src-tauri/icons/icon.png`.
@@ -133,14 +133,14 @@ That is all. It appears in the sidebar's *More* group, can be pinned, hidden and
 like the others, gets the page transition, and existing accounts pick it up automatically
 (`withRegistryPages` in `store.tsx` merges new pages into saved nav preferences).
 
-- `id` is stored in user preferences — pick it once and don't rename it after release.
+- `id` is stored in user preferences, so pick it once and don't rename it after release.
 - `icon` is any [Phosphor](https://phosphoricons.com) class name.
 - `primaryAction` controls the toolbar button: `"new-task"`, `"new-list"` or `"none"`.
 
 **Adding a field to a task** is the same shape of change: add it to `Task` in
 `lib/types.ts`, give it a default in `newTask()` in `lib/reducer.ts`, then use it. Nothing
-else needs migrating — stored documents simply lack the key and get `undefined`, so give
-new fields a sensible default when you read them.
+else needs migrating, since stored documents simply lack the key and get `undefined`, so
+give new fields a sensible default when you read them.
 
 ---
 
@@ -150,28 +150,28 @@ Right now auth and storage use the local implementations. Switching is configura
 code: fill in `.env` and both `AuthProvider` and `DataAdapter` flip to Supabase on the next
 launch.
 
-### Step 1 — create the project
+### Step 1: create the project
 
 1. Sign up at supabase.com, **New project**, pick a region near you (free tier is fine).
 2. **Project Settings → API**: copy the **Project URL** and the **anon public** key.
 
-### Step 2 — put the keys in `.env`
+### Step 2: put the keys in `.env`
 
 ```
 VITE_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOi...
 ```
 
-The anon key is safe in a desktop client — it only permits what your row-level security
+The anon key is safe in a desktop client. It only permits what your row-level security
 policies allow. Never put the **service_role** key in the app.
 
-### Step 3 — enable email auth
+### Step 3: enable email auth
 
 **Authentication → Providers → Email**: on. For testing, turn **Confirm email** off so
 sign-up logs you straight in; turn it back on before real users exist. (With confirmation
 on, `signUp` returns "Check your inbox…" and the account signs in after confirming.)
 
-### Step 4 — create the table
+### Step 4: create the table
 
 **SQL Editor → New query**, run this:
 
@@ -195,7 +195,7 @@ create policy "own workspace update" on public.workspaces
 One row per user holding the whole document as JSON. It syncs immediately and is the
 fastest thing to reason about while the schema is still moving.
 
-### Step 5 — restart
+### Step 5: restart
 
 ```bash
 npm start
@@ -262,7 +262,7 @@ fights the filtering this app is built around.
 
 ## 6. Ideas to make Orbit better than the alternatives
 
-The timeline is already the differentiator — most task apps stop at a list. These build on it.
+The timeline is already the differentiator. Most task apps stop at a list. These build on it.
 
 **Planning**
 
@@ -270,7 +270,7 @@ The timeline is already the differentiator — most task apps stop at a list. Th
   plainly "you've planned 11h into 7h". Nobody does this well, and it's the single most
   useful thing a planner can tell you.
 - **Auto-fill my day.** One button that places today's unscheduled tasks into free gaps,
-  respecting a "no work before 9am" preference. Suggest, don't impose — always leave it draggable.
+  respecting a "no work before 9am" preference. Suggest, don't impose, and always leave it draggable.
 - **Estimate vs. actual.** Track when a block was actually finished and, after two weeks, show
   "your 1h tasks really take 1h40". It makes future estimates honest.
 - **Energy shape.** Let people mark hours as high/low focus and prefer heavy tasks in the
@@ -279,7 +279,7 @@ The timeline is already the differentiator — most task apps stop at a list. Th
 **Study-specific (a real gap in generic tools)**
 
 - **Course/deadline mode.** A list can hold an exam or hand-in date and work backwards into
-  study blocks — spaced, not crammed the night before.
+  study blocks, spaced out instead of crammed the night before.
 - **Session log per task.** Note what you actually got through, so picking a subject back up
   next week doesn't start from zero.
 - **Reading-list tasks.** Page or chapter counts on a task, so progress is partial rather
@@ -289,8 +289,8 @@ The timeline is already the differentiator — most task apps stop at a list. Th
 
 - **Keyboard-first.** `⌘K` for a command palette, `⌘N` new task, `T` schedule to today,
   digits to set length. Power users switch tools for this alone.
-- **Menu-bar mini view.** Next block and its remaining time, always visible — cheap to build
-  in Tauri and the reason people keep an app open.
+- **Menu-bar mini view.** Next block and its remaining time, always visible. Cheap to build
+  in Tauri, and the reason people keep an app open.
 - **Native notifications** for reminders, with "start now / push 15 min" actions.
 - **Week view.** The same vertical timeline across seven columns; the mental model carries over.
 - **Undo everywhere** (`⌘Z`), including deletes. Confidence to move fast comes from being
@@ -301,12 +301,12 @@ The timeline is already the differentiator — most task apps stop at a list. Th
 
 - No AI features until the basics feel excellent. No sub-sub-projects, no custom fields, no
   labels-on-labels. The reason people abandon these tools is that planning becomes the work.
-  One clear question — *what am I doing in the next hour?* — answered better than anyone else.
+  Just one clear question, answered better than anyone else: *what am I doing in the next hour?*
 
 ---
 
 ## 7. Design prototype
 
-`../Orbit.dc.html` at the repo root is the original interactive prototype for this app —
-useful for trying an interaction quickly before implementing it here. It is not part of the
-build.
+`../Orbit.dc.html` at the repo root is the original interactive prototype for this app.
+It's useful for trying an interaction quickly before implementing it here. It is not part of
+the build.
