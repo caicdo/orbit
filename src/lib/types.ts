@@ -43,6 +43,19 @@ export interface List {
   color: string;
 }
 
+/** A rich-text document attached to a list — the project's write-up, notes,
+ *  spec, whatever. `content` is sanitized-ish HTML from the editor's own
+ *  contentEditable surface (see components/DocEditor.tsx); images are
+ *  embedded as data URIs, downscaled on the way in. */
+export interface Doc {
+  id: string;
+  listId: string;
+  title: string;
+  content: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface NavPref {
   /** matches a PageDef id in src/pages/registry.tsx */
   id: string;
@@ -67,6 +80,7 @@ export interface Prefs {
 export interface AppData {
   tasks: Task[];
   lists: List[];
+  documents: Doc[];
   nav: NavPref[];
   prefs: Prefs;
 }
@@ -110,6 +124,7 @@ export const LIST_COLOR_PRESETS = [
 export const emptyData = (): AppData => ({
   tasks: [],
   lists: [],
+  documents: [],
   nav: [],
   prefs: {
     view: "board",

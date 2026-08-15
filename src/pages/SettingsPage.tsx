@@ -16,7 +16,7 @@ const COPY: Record<Wipe, { title: string; body: string; cta: string }> = {
   },
   lists: {
     title: "Delete all lists?",
-    body: "Every list will be removed. Tasks stay, but they lose their list.",
+    body: "Every list and its documents will be removed. Tasks stay, but they lose their list.",
     cta: "Delete lists",
   },
   all: {

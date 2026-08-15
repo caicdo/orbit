@@ -64,7 +64,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const nav = withRegistryPages(base.nav);
       const tasks = migrateTasks(base.tasks);
       const prefs = { ...emptyData().prefs, ...base.prefs };
-      dispatch({ type: "hydrate", data: { ...base, tasks, nav, prefs } });
+      const documents = base.documents ?? [];
+      dispatch({ type: "hydrate", data: { ...base, tasks, nav, prefs, documents } });
       setLoaded(true);
     });
     return () => {

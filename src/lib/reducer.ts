@@ -5,6 +5,7 @@ import {
   emptyData,
   type AppData,
   type BucketKey,
+  type Doc,
   type List,
   type NavPref,
   type Prefs,
@@ -20,14 +21,26 @@ export type Action =
   | { type: "task/replace"; task: Task }
   | { type: "task/remove"; id: string }
   | { type: "task/move"; id: string; beforeId: string; adoptStatus: boolean }
-  | { type: "list/add"; name?: string }
+  | { type: "list/add"; name?: string; color?: string }
   | { type: "list/update"; id: string; fields: Partial<List> }
   | { type: "list/remove"; id: string }
+  | { type: "doc/add"; doc: Doc }
+  | { type: "doc/update"; id: string; fields: Partial<Pick<Doc, "title" | "content">> }
+  | { type: "doc/remove"; id: string }
   | { type: "nav/setPref"; id: string; fields: Partial<Pick<NavPref, "pinned" | "hidden">> }
   | { type: "nav/move"; id: string; pinned: boolean; beforeId: string | null }
   | { type: "prefs/set"; fields: Partial<Prefs> }
   | { type: "prefs/bucket"; key: BucketKey; open: boolean }
   | { type: "wipe"; what: "tasks" | "lists" | "all" };
+
+export const newDoc = (over: Partial<Doc> & { listId: string }): Doc => ({
+  id: uid(),
+  title: "Untitled document",
+  content: "",
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+  ...over,
+});
 
 export const newTask = (over: Partial<Task> = {}): Task => ({
   id: uid(),
@@ -88,7 +101,7 @@ export function reducer(state: AppData, action: Action): AppData {
       const list: List = {
         id: uid(),
         name: action.name ?? `New list${state.lists.length ? ` ${state.lists.length + 1}` : ""}`,
-        color: LIST_COLORS[state.lists.length % LIST_COLORS.length],
+        color: action.color ?? LIST_COLORS[state.lists.length % LIST_COLORS.length],
       };
       return { ...state, lists: [...state.lists, list] };
     }
@@ -104,11 +117,26 @@ export function reducer(state: AppData, action: Action): AppData {
         ...state,
         lists: state.lists.filter((l) => l.id !== action.id),
         tasks: state.tasks.map((t) => (t.listId === action.id ? { ...t, listId: null } : t)),
+        documents: state.documents.filter((d) => d.listId !== action.id),
         prefs: {
           ...state.prefs,
           filterListId: state.prefs.filterListId === action.id ? null : state.prefs.filterListId,
         },
       };
+
+    case "doc/add":
+      return { ...state, documents: [...state.documents, action.doc] };
+
+    case "doc/update":
+      return {
+        ...state,
+        documents: state.documents.map((d) =>
+          d.id === action.id ? { ...d, ...action.fields, updatedAt: Date.now() } : d,
+        ),
+      };
+
+    case "doc/remove":
+      return { ...state, documents: state.documents.filter((d) => d.id !== action.id) };
 
     case "nav/setPref":
       return {
@@ -144,6 +172,7 @@ export function reducer(state: AppData, action: Action): AppData {
       return {
         ...state,
         lists: [],
+        documents: [],
         tasks: state.tasks.map((t) => ({ ...t, listId: null })),
         prefs: { ...state.prefs, filterListId: null },
       };
