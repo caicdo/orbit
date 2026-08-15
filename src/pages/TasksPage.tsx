@@ -1,17 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import DueBadge from "../components/DueBadge";
 import TaskCheckbox from "../components/TaskCheckbox";
 import { useTaskEditor } from "../components/TaskModalHost";
 import { useStore } from "../lib/store";
 import { STATUS_COLUMNS, collapseDone, listColor, listName, visibleTasks } from "../lib/selectors";
-import { dueDisplay } from "../lib/time";
 import { armOnHold } from "../lib/dragArm";
 import type { Status, Task } from "../lib/types";
-
-const DueBadge = ({ due }: { due: Task["due"] }) => {
-  if (due == null) return <span>—</span>;
-  const { text, tone } = dueDisplay(due);
-  return <span className={tone ? `due-${tone}` : ""}>{text}</span>;
-};
 
 export default function TasksPage() {
   const { data, dispatch } = useStore();

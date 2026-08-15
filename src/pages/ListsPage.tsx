@@ -1,24 +1,26 @@
 import { useEffect, useRef, useState } from "react";
+import ConfirmModal from "../components/ConfirmModal";
+import { useListEditor } from "../components/ListModalHost";
+import { useNav } from "../lib/navContext";
 import { useStore } from "../lib/store";
-import { LIST_COLOR_PRESETS } from "../lib/types";
 
 export default function ListsPage() {
   const { data, dispatch } = useStore();
   const { lists, tasks } = data;
-  const [openId, setOpenId] = useState<string | null>(null);
-  const popRef = useRef<HTMLDivElement>(null);
+  const { createList, editList } = useListEditor();
+  const goTo = useNav();
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close the popover on an outside click.
   useEffect(() => {
-    if (!openId) return;
+    if (!menuFor) return;
     const onDown = (e: MouseEvent) => {
-      if (!popRef.current?.contains(e.target as Node)) setOpenId(null);
+      if (!menuRef.current?.contains(e.target as Node)) setMenuFor(null);
     };
     window.addEventListener("mousedown", onDown);
     return () => window.removeEventListener("mousedown", onDown);
-  }, [openId]);
-
-  const setColor = (id: string, color: string) => dispatch({ type: "list/update", id, fields: { color } });
+  }, [menuFor]);
 
   if (lists.length === 0)
     return (
@@ -26,13 +28,15 @@ export default function ListsPage() {
         <div className="empty">
           <h4>No lists yet</h4>
           <p className="muted small">Lists group your tasks — a course, a client, a side project.</p>
-          <button className="btn btn-primary" onClick={() => dispatch({ type: "list/add" })}>
+          <button className="btn btn-primary" onClick={createList}>
             <i className="ph ph-plus" />
             New list
           </button>
         </div>
       </div>
     );
+
+  const deleteTarget = deleteId ? lists.find((l) => l.id === deleteId) : undefined;
 
   return (
     <div className="scroll pad">
@@ -42,56 +46,46 @@ export default function ListsPage() {
           const done = all.filter((t) => t.status === "done").length;
           const pct = all.length ? Math.round((done / all.length) * 100) : 0;
           return (
-            <div className="list-card" key={l.id}>
+            <div className="list-card is-clickable" key={l.id} onClick={() => goTo(`list:${l.id}`)}>
               <div className="row start gap">
-                <div className="swatch-wrap">
+                <span className="dot" style={{ background: l.color }} />
+                <span className="grow list-card-name">{l.name}</span>
+                <div className="card-menu-wrap" ref={menuFor === l.id ? menuRef : undefined}>
                   <button
-                    className="swatch"
-                    title="Change color"
-                    style={{ background: l.color }}
-                    onClick={() => setOpenId(openId === l.id ? null : l.id)}
-                  />
-                  {openId === l.id && (
-                    <div className="color-pop" ref={popRef}>
-                      <div className="color-grid">
-                        {LIST_COLOR_PRESETS.map((c) => (
-                          <button
-                            key={c}
-                            className={`color-swatch${c === l.color ? " is-active" : ""}`}
-                            style={{ background: c }}
-                            title={c}
-                            onClick={() => {
-                              setColor(l.id, c);
-                              setOpenId(null);
-                            }}
-                          />
-                        ))}
-                      </div>
-                      <label className="btn btn-secondary custom-color-btn">
-                        <i className="ph ph-eyedropper" />
-                        Custom color
-                        <input
-                          type="color"
-                          className="color-input"
-                          value={l.color}
-                          onChange={(e) => setColor(l.id, e.target.value)}
-                        />
-                      </label>
+                    className={`btn btn-icon card-menu-btn${menuFor === l.id ? " is-open" : ""}`}
+                    title="List settings"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuFor(menuFor === l.id ? null : l.id);
+                    }}
+                  >
+                    <i className="ph ph-dots-three-vertical" />
+                  </button>
+                  {menuFor === l.id && (
+                    <div className="card-menu" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        className="card-menu-opt"
+                        onClick={() => {
+                          setMenuFor(null);
+                          editList(l.id);
+                        }}
+                      >
+                        <i className="ph ph-pencil-simple" />
+                        Rename
+                      </button>
+                      <button
+                        className="card-menu-opt is-danger"
+                        onClick={() => {
+                          setMenuFor(null);
+                          setDeleteId(l.id);
+                        }}
+                      >
+                        <i className="ph ph-trash" />
+                        Delete
+                      </button>
                     </div>
                   )}
                 </div>
-                <input
-                  className="input bare grow"
-                  value={l.name}
-                  onChange={(e) => dispatch({ type: "list/update", id: l.id, fields: { name: e.target.value } })}
-                />
-                <button
-                  className="btn btn-icon"
-                  title="Delete list"
-                  onClick={() => dispatch({ type: "list/remove", id: l.id })}
-                >
-                  <i className="ph ph-trash" />
-                </button>
               </div>
               <div className="muted small mt-sm">
                 {done}/{all.length} done
@@ -103,6 +97,18 @@ export default function ListsPage() {
           );
         })}
       </div>
+
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete this list?"
+          body={`This can't be undone — every document in "${deleteTarget.name}" goes too. Tasks stay, but they lose their list.`}
+          onCancel={() => setDeleteId(null)}
+          onConfirm={() => {
+            dispatch({ type: "list/remove", id: deleteTarget.id });
+            setDeleteId(null);
+          }}
+        />
+      )}
     </div>
   );
 }

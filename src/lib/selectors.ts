@@ -1,5 +1,5 @@
 import { dueBucket } from "./time";
-import type { AppData, BucketKey, List, Status, Task } from "./types";
+import type { AppData, BucketKey, Doc, List, Status, Task } from "./types";
 
 export const listById = (lists: List[], id: string | null): List | undefined =>
   id ? lists.find((l) => l.id === id) : undefined;
@@ -9,6 +9,34 @@ export const listName = (lists: List[], id: string | null): string =>
 
 export const listColor = (lists: List[], id: string | null): string =>
   listById(lists, id)?.color ?? "#75798c";
+
+export interface ListStats {
+  total: number;
+  open: number;
+  done: number;
+  important: number;
+  pct: number;
+}
+
+/** Task counts for a single list's detail page. */
+export function listStats(tasks: Task[], listId: string): ListStats {
+  const all = tasks.filter((t) => t.listId === listId);
+  const done = all.filter((t) => t.status === "done").length;
+  const important = all.filter((t) => t.important && t.status !== "done").length;
+  return { total: all.length, open: all.length - done, done, important, pct: all.length ? Math.round((done / all.length) * 100) : 0 };
+}
+
+/** A list's tasks, open ones first (grouped, then newest created), done last. */
+export function tasksForList(tasks: Task[], listId: string): Task[] {
+  return tasks
+    .filter((t) => t.listId === listId)
+    .sort((a, b) => Number(a.status === "done") - Number(b.status === "done") || b.createdAt - a.createdAt);
+}
+
+/** A list's documents, most recently edited first. */
+export function docsForList(documents: Doc[], listId: string): Doc[] {
+  return documents.filter((d) => d.listId === listId).sort((a, b) => b.updatedAt - a.updatedAt);
+}
 
 /** Tasks after the sidebar list filter. */
 export const visibleTasks = (data: AppData): Task[] =>

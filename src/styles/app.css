@@ -975,19 +975,68 @@ select.needs {
   padding: var(--space-6);
   animation: popIn 180ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
+.list-card.is-clickable {
+  cursor: pointer;
+}
 .list-card:hover {
   transform: translateY(-1px);
 }
-.swatch {
-  width: 11px;
-  height: 11px;
-  padding: 0;
+.list-card-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A small icon-menu popover — the list card's settings button, the list
+   detail page's own settings button, and a document row's delete button all
+   share this pattern: a trigger that's invisible until relevant, and a menu
+   that drops from it. */
+.card-menu-wrap {
+  position: relative;
+  flex: none;
+}
+.card-menu-btn {
+  opacity: 0;
+}
+.list-card:hover .card-menu-btn,
+.card-menu-btn.is-open {
+  opacity: 1;
+}
+.card-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 128px;
+  background: var(--ink-3);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-2);
+  animation: popIn 120ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.card-menu-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
   border: none;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font-size: 12.5px;
+  text-align: left;
   cursor: pointer;
 }
-.swatch-wrap {
-  position: relative;
+.card-menu-opt:hover {
+  background: var(--color-neutral-900);
+}
+.card-menu-opt.is-danger {
+  color: #e2726c;
+}
+.card-menu-opt.is-danger:hover {
+  background: color-mix(in srgb, #e2726c 14%, transparent);
 }
 .color-pop {
   position: absolute;
@@ -1480,5 +1529,216 @@ select.needs {
 .btn-secondary.is-on {
   border-color: var(--color-accent-600);
   background: var(--color-accent-800);
+  color: var(--color-accent-300);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.dot.lg {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+/* ---------- list detail ---------- */
+.list-detail-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+.list-detail-head h3 {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.list-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.7fr);
+  gap: var(--space-6);
+  align-items: start;
+  margin-bottom: var(--space-6);
+}
+@media (max-width: 780px) {
+  .list-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.list-detail-tasks,
+.list-detail-stats {
+  background: var(--ink-2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-6);
+  animation: riseIn 200ms ease both;
+}
+.list-detail-task-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 480px;
+  overflow-y: auto;
+  /* .flat-row.raised draws its "border" as an outward box-shadow ring, and a
+     scrolling container clips anything past its own edge — with the rows
+     flush against this one on every side, that shaved the ring's top and
+     sides off (the bottom survived only because the row-to-row gap gave it
+     room). This padding is that room, on all four sides. */
+  padding: 2px;
+  margin: -2px;
+}
+.stats-2col {
+  grid-template-columns: repeat(2, 1fr);
+  margin-bottom: var(--space-4);
+}
+.stat-tile.static {
+  cursor: default;
+}
+.stat-tile.static:hover {
+  transform: none;
+  box-shadow: var(--shadow-sm);
+}
+.list-detail-docs {
+  margin-bottom: var(--space-8);
+}
+
+/* ---------- documents ---------- */
+.docs-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+@media (max-width: 780px) {
+  .docs-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.docs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--ink-2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-3);
+}
+.doc-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.doc-row:hover {
+  background: var(--color-neutral-900);
+}
+.doc-row.is-active {
+  background: var(--ink-3);
+  box-shadow: inset 0 0 0 1px var(--color-accent-800);
+}
+.doc-row-title {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.doc-row-delete {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  opacity: 0;
+  color: var(--color-neutral-600);
+}
+.doc-row:hover .doc-row-delete {
+  opacity: 1;
+}
+.doc-row-delete:hover {
+  color: #e2726c;
+}
+.doc-pane {
+  background: var(--ink-2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  animation: riseIn 180ms ease both;
+}
+.doc-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.doc-title-input {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  padding: var(--space-6) var(--space-6) var(--space-3);
+}
+.doc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-2) var(--space-6);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.doc-tool-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--line);
+  margin: 0 var(--space-2);
+}
+.doc-body {
+  flex: 1;
+  min-height: 320px;
+  padding: var(--space-6);
+  font-size: 14.5px;
+  line-height: 1.6;
+  outline: none;
+  overflow-y: auto;
+}
+.doc-body:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-neutral-600);
+  pointer-events: none;
+}
+.doc-body h1 {
+  font-family: var(--font-heading);
+  font-size: 24px;
+  margin: 0 0 var(--space-3);
+}
+.doc-body h2 {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  margin: var(--space-6) 0 var(--space-2);
+}
+.doc-body p {
+  margin: 0 0 var(--space-3);
+}
+.doc-body ul {
+  margin: 0 0 var(--space-3);
+  padding-left: 1.4em;
+}
+.doc-body img {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  margin: var(--space-3) 0;
+}
+.doc-body a {
   color: var(--color-accent-300);
 }
